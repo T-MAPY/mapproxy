@@ -1163,10 +1163,13 @@ class CacheConfiguration(ConfigurationBase):
 
         md_template = CouchDBMDTemplate(self.conf['cache'].get('tile_metadata', {}))
         tile_id = self.conf['cache'].get('tile_id')
+        
+        tile_attribute = self.conf['cache'].get('tile_attribute')
 
         return CouchDBCache(url=url, db_name=db_name,
             file_ext=file_ext, tile_grid=grid_conf.tile_grid(),
-            md_template=md_template, tile_id_template=tile_id)
+            md_template=md_template, tile_id_template=tile_id,
+            tile_attribute=tile_attribute)
 
     def _riak_cache(self, grid_conf, file_ext):
         from mapproxy.cache.riak import RiakCache

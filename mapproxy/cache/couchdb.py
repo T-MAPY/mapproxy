@@ -47,7 +47,7 @@ class UnexpectedResponse(CacheBackendError):
 class CouchDBCache(TileCacheBase):
     def __init__(self, url, db_name,
         file_ext, tile_grid, md_template=None,
-        tile_id_template=None):
+        tile_id_template=None, tile_attribute=None):
 
         if requests is None:
             raise ImportError("CouchDB backend requires 'requests' package.")
@@ -62,6 +62,7 @@ class CouchDBCache(TileCacheBase):
         self.db_initialised = False
         self.app_init_db_lock = Lock()
         self.tile_id_template = tile_id_template
+        self.tile_attribute = tile_attribute
 
     def init_db(self):
         with self.app_init_db_lock:
@@ -126,15 +127,22 @@ class CouchDBCache(TileCacheBase):
 
         with tile_buffer(tile) as buf:
             data = buf.read()
-        tile_doc['_attachments'] = {
-            'tile': {
-                'content_type': 'image/' + self.file_ext,
-                'data': codecs.decode(
-                    base64.b64encode(data).replace(b'\n', b''),
-                    'ascii',
-                ),
-            }
+
+        tile_obj = {
+            'content_type': 'image/' + self.file_ext,
+            'data': codecs.decode(
+                base64.b64encode(data).replace(b'\n', b''),
+                'ascii',
+            ) 
         }
+
+        if self.tile_attribute: 
+            tile_doc[self.tile_attribute] = tile_obj
+        else:
+            tile_doc['_attachments'] = {
+                'tile': tile_obj
+            }
+
         return tile_id, tile_doc
 
     def _store_bulk(self, tiles):
@@ -216,8 +224,18 @@ class CouchDBCache(TileCacheBase):
         resp = self.req_session.get(url, headers={'Accept': 'application/json'})
         if resp.status_code == 200:
             doc = json.loads(codecs.decode(resp.content, 'utf-8'))
-            tile_data = BytesIO(base64.b64decode(doc['_attachments']['tile']['data']))
-            tile.source = ImageSource(tile_data)
+            tile_obj = None
+            # tile in attribute
+            if self.tile_attribute:
+                tile_obj = doc.get(self.tile_attribute)
+            # fallback to _attachments
+            if not tile_obj:
+                tile_obj = doc.get('_attachments', {}).get('tile', None)
+            if tile_obj:
+                tile_data = BytesIO(base64.b64decode(tile_obj['data']))
+                tile.source = ImageSource(tile_data)
+            else:
+                raise ValueError('CouchDB: missing tile data')
             tile.timestamp = doc.get(self.md_template.timestamp_key)
             return True
         return False

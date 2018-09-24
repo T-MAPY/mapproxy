@@ -137,6 +137,7 @@ cache_types = {
         },
         'tile_id': str(),
         'tile_lock_dir': str(),
+        'tile_attribute': str(),
     },
     's3': {
         'bucket_name': str(),
